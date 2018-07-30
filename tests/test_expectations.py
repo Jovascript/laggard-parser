@@ -2,16 +2,16 @@ import pytest
 
 from laggard.buffer import Buffer
 from laggard.exceptions import ParseException
-from laggard.helpers import expect_literal
+from laggard.rule import makeRule
 
 
-def test_expect_literal():
-    buf = Buffer("hellogoodbye")
-    expect_literal(buf, "hello")
-    assert expect_literal(buf, "goodbye") == "goodbye"
+def test_basic_parse():
+    buf = Buffer("helloworld")
+    helloworldRule = makeRule("hello") & makeRule("world")
+    assert helloworldRule.parse(buf) == ["hello", "world"]
 
-def test_expect_literal_errors():
-    buf = Buffer("hellogoodbye")
-    expect_literal(buf, "hello")
+def test_failed_basic_parse():
+    buf = Buffer("helloworld")
+    hellogoodbyeRule = makeRule("hello") & makeRule("goodbye")
     with pytest.raises(ParseException):
-        expect_literal(buf, "world")
+        hellogoodbyeRule.parse(buf)
