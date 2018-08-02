@@ -2,10 +2,11 @@ from laggard.exceptions import ParseException
 
 
 class Buffer:
-    def __init__(self, source: str):
+    def __init__(self, source: str, skip=[]):
         self.source = source
         self.stack = []
         self.current_index = 0
+        self.skip = skip
 
     @property
     def last_pos(self) -> tuple:
@@ -21,8 +22,11 @@ class Buffer:
         return (lineno, colno)
 
     def fetch(self, count: int = 1) -> str:
-        retval = self.source[self.current_index: self.current_index+count]
-        self.current_index += count
+        retval = ""
+        while len(retval) < count and self.current_index < len(self.source):
+            if self.source[self.current_index] not in self.skip:
+                retval += self.source[self.current_index]
+            self.current_index += 1
         return retval
 
     def mark(self):

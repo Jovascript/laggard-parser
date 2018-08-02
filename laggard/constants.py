@@ -1,10 +1,11 @@
-from enum import Enum, auto
+import string
+
+from laggard.rulebuilders import RuleBuilder
 
 
-class MatchCounts(Enum):
-    # More than 1
-    MULTIPLE = auto()
-    # 1 or more
-    SOME = auto()
-    # 0 or more
-    ANY = auto()
+ALPHA = RuleBuilder.create(list(string.ascii_letters), name="ALPHABET")
+ALPHANUM = RuleBuilder.create(list(string.ascii_letters+string.digits), name="ALPHANUMERICS")
+
+PUNCTUATION = RuleBuilder.create(list(string.punctuation), name="PUNCTUATION")
+
+WHITESPACE = RuleBuilder.create(list(string.whitespace), name="WHITESPACE")
