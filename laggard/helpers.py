@@ -1,118 +1,58 @@
-from collections import Callable
-from typing import List, Any
+from typing import List, Any, Callable, Union
 
-from laggard.rulebuilders import RuleBuilder
+from laggard.buffer import Buffer
+from laggard.exceptions import ParseException
 
 
-def multiple(rule: RuleBuilder, **kwargs):
-    """
-    Will attempt to parse the provided rule at least once.
+def expect(buffer: Buffer, literal: str):
+    with buffer:
+        x = buffer.fetch(len(literal), skip="initial")
+        if x == literal:
+            return literal
+        else:
+            buffer.cry("expected '{}', got '{}'".format(literal, x))
 
-    Args:
-        rule: The :class:`~laggard.rulebuilders.RuleBuilder` to parse.
-        **kwargs: Passed onto :class:`~laggard.rulebuilders.RuleBuilder`
 
-    Returns:
-        :class:`~laggard.functionalrulebuilders.MultipleRule`: The RuleBuilder that will parse appropriately.
-    """
-    return RuleBuilder.create(rule, multiple=True, **kwargs)
+def expectOneOf(buffer: Buffer, charset: List[str], skip: bool = True):
+    with buffer:
+        x = buffer.fetch_char(skip)
+        if x in charset:
+            return x
+        else:
+            buffer.cry("expected one of {}, got {}".format(', '.join(charset), x))
 
-def optional(rule: RuleBuilder, **kwargs):
-    """
-    Generates a parser which will attempt to parse the provided rule, and return None if it fails.
 
-    Args:
-        rule: The :class:`~laggard.rulebuilders.RuleBuilder` to parse.
-        **kwargs: Passed onto :class:`~laggard.rulebuilders.RuleBuilder`
+def expectManyOutOf(buffer: Buffer, charset: List[str]):
+    with buffer:
+        v = expectOneOf(buffer, charset, skip=True)
+        try:
+            while True:
+                v += expectOneOf(buffer, charset, skip=False)
+        except ParseException:
+            return v
 
-    Returns:
-        :class:`~laggard.functionalrulebuilders.OptionalRule`: The RuleBuilder that will parse appropriately.
-    """
-    return RuleBuilder.create(rule, optional=True, **kwargs)
 
-def none_or_more(rule: RuleBuilder, **kwargs):
-    """
-    Generates a parser which will attempted to parse the provided rule 0 or more times, returning a List of all the parses it could do.
+def parseMultipleOf(buffer: Buffer, parser: Callable, accept_none: bool = False):
+    with buffer:
+        parses = []
+        try:
+            while True:
+                parses.append(parser())
+        except ParseException:
+            if (not accept_none) and len(parses) < 1:
+                raise
+            else:
+                return parses
 
-    Args:
-        rule: The :class:`~laggard.rulebuilders.RuleBuilder` to parse.
-        **kwargs: Passed onto :class:`~laggard.rulebuilders.RuleBuilder`
 
-    Returns:
-        :class:`~laggard.functionalrulebuilders.SomeOrNoneRule`: The RuleBuilder that will parse appropriately.
-    """
-    return RuleBuilder.create(rule, optional=True, multiple=True, **kwargs)
-
-class RulePlaceholder:
-    """
-    When a rule cannot be resolved, because its subrule might not exist yet, this is put in its place.
-    This is what a function decorated with :function:`~laggard.decorations.rule` become.
-    It also has an inbuilt decorator to create rule interpreters(functions to produce ASTs etc.)
-
-    It has all the magic methods implemented in :class:`~laggard.rulebuilders.RuleBuilder`, so you can treat it like a :class:`~laggard.rulebuilders.RuleBuilder` almost all the time.
-
-    Examples:
-        To specify a transformer for a rule::
-
-            @rule
-            def myrule():
-                return myotherrule | mysecondrule
-
-            @myrule.transformer
-            def myruletransformer(result):
-                # Do things here
-                return result
-
-    Warnings:
-        This class **should not** be initialised directly. Instead, use :function:`~laggard.decorations.rule`
-    """
-
-    def __init__(self, rule_resolver: Callable, **kwargs):
-
-        self.resolver = rule_resolver
-        self._options = {
-            "name": self.resolver.__qualname__,
-        }
-        self._options.update(kwargs)
-        self._transformer = None
-
-    def invoke(self, **kwargs):
-        """
-        Creates a :class:`~laggard.rulebuilders.RuleBuilder` by executing the provided function.
-
-        Args:
-            **kwargs: Passed onto :class:`~laggard.rulebuilders.RuleBuilder`
-
-        Returns:
-            :class:`~laggard.rulebuilders.RuleBuilder`: The RuleBuilder described in the function.
-
-        """
-        return RuleBuilder.create(self.resolver(), **dict(self._options, **kwargs))
-
-    def transformer(self, f):
-        """
-        Use this as a decorator for a function which takes the raw parse result, and returns the new, transformed result.
-
-        Args:
-            f: The decorated function of signature (Any) -> Any
-
-        Returns:
-            f
-        """
-        self._options["transformer"] = f
-        return f
-
-    def __or__(self, other):
-        return self.invoke() | other
-    def __ror__(self, other):
-        return other | self.invoke()
-    def __and__(self, other):
-        return self.invoke() & other
-    def __rand__(self, other):
-        return other & self.invoke()
-
-    def __call__(self, *args, **kwargs):
-        return self.invoke()(*args, **kwargs)
+def parseUntil(buffer: Buffer, charset: List[str]):
+    with buffer:
+        return_val = ""
+        last_char = None
+        while last_char not in charset:
+            last_char = buffer.fetch_char(False)
+            return_val += last_char
+        return return_val[:-1]
 
 
 class OptionallyNamedTuple:

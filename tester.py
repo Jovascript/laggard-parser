@@ -1,35 +1,21 @@
-from laggard import *
-from laggard.constants import ALPHA
+from laggard.grammar_parser import Parser
+from laggard.codegen import CodeGenerator
 
+source = """
+start = kitty;
+kitty = "hello" "world";
+"""
+x = Parser(source)
 
-@rule
-def phrase():
-    return multiple(word("word") & space)("initial") & word("last")
+m = x.parse()
+print(m)
 
-@phrase.transformer
-def phrasetransformer(x):
-    res = ""
-    for n in x["initial"]:
-        res += n["word"] + " "
-    res += x["last"]
-    return res
+y = CodeGenerator(m)
 
-@rule
-def word():
-    return multiple(ALPHA)
+print(y.generate())
 
-@rule
-def space():
-    return ' '
+exec(y.generate())
 
-@word.transformer
-def wordtransformer(result):
-    return ''.join(result)
+x = MyParser("helloworld")
 
-x = phrase.invoke()
-
-buf = Buffer("Hello World")
-
-parser = x.generate_complete_parser()
-y = parser(buf)
-print(y)
+print(x.parse())
